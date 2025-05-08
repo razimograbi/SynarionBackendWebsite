@@ -29,7 +29,7 @@ export default function ScheduleDashboard() {
   const [scheduleData, setScheduleData] = useState(mockScheduleData);
   // Fix 1: Initialize timeOffData as an array
   const [timeOffData, setTimeOffData] = useState([]);
-  const [newTimeOff, setNewTimeOff] = useState(defaultTimeOff); // Changed to use defaultTimeOff for consistency
+  const [newTimeOff, setNewTimeOff] = useState(defaultTimeOff); 
   const [editingTimeOff, setEditingTimeOff] = useState(null);
 
   const [notification, setNotification] = useState(null);
@@ -158,11 +158,34 @@ export default function ScheduleDashboard() {
     setIsLoading(true);
     setErrors({});
     try {
-      const newEntry = await timeOffService.addTimeOff(newTimeOff);
-      // Fix 3: Normalize id field
-      setTimeOffData(prev => [...prev, { ...newEntry, id: newEntry._id || newEntry.id }]);
-      setNewTimeOff(defaultTimeOff);
-      showNotification('Time off added successfully!', 'success');
+      // This is the full API response, e.g., { message: "...", timeOff: { ... } }
+      const apiResponse = await timeOffService.addTimeOff(newTimeOff); 
+
+      // console.log('Data sent to API (newTimeOff):', newTimeOff);
+      // console.log('Response from API (apiResponse):', apiResponse);
+
+      // IMPORTANT: Check if the response has the expected 'timeOff' property
+      if (apiResponse && apiResponse.timeOff) {
+        const newTimeOffFromServer = apiResponse.timeOff; // This is the actual time off object
+
+        // Construct the object to be added to the local state.
+        // Use the data returned from the server, which includes the server-generated _id.
+        const itemForDisplay = {
+          ...newTimeOffFromServer, // Spread all properties from the server's timeOff object
+          id: newTimeOffFromServer._id, // Ensure 'id' prop is set from '_id' for React keys
+        };
+        
+        // console.log('Item being added to state (itemForDisplay):', itemForDisplay);
+
+        setTimeOffData(prev => [...prev, itemForDisplay]);
+        setNewTimeOff(defaultTimeOff); // Reset the form
+        // Use the message from the API response if available
+        showNotification(apiResponse.message || 'Time off added successfully!', 'success');
+      } else {
+        // Handle cases where the API response structure is not as expected
+        console.error('Error adding time off: API response did not contain timeOff object.', apiResponse);
+        showNotification('Failed to add time off due to an unexpected server response.', 'error');
+      }
     } catch (error) {
       console.error('Error adding time off:', error);
       handleApiError(error, 'Failed to add time off. Please try again.');
@@ -260,6 +283,7 @@ export default function ScheduleDashboard() {
   };
 
   const formatDateRange = (startDate, endDate) => {
+    // console.log('Formatting date range:', startDate, endDate);
     const start = new Date(startDate);
     const options = { month: 'short', day: 'numeric', year: 'numeric' };
     if (startDate === endDate) return start.toLocaleDateString('en-US', options);
